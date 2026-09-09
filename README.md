@@ -1,5 +1,7 @@
 # @rhino.fi/wdk-protocol-sda-rhinofi
 
+[![Built with WDK](./assets/built-with-wdk.png)](https://docs.wdk.tether.io)
+
 WDK module for Rhino.fi Smart Deposit Addresses: generate one address per user and let Rhino.fi handle chain detection, routing and settlement.
 
 A **Smart Deposit Address** (SDA) is an address rhino.fi issues on a source
