@@ -1,6 +1,6 @@
 {
   "name": "@rhino.fi/wdk-protocol-sda-rhinofi",
-  "version": "1.0.1",
+  "version": "1.1.0",
   "description": "WDK module for Rhino.fi Smart Deposit Addresses: generate one address per user and let Rhino.fi handle chain detection, routing and settlement.",
   "keywords": [
     "wdk",
@@ -42,7 +42,7 @@
     "test:coverage": "cross-env NODE_OPTIONS=--experimental-vm-modules jest --coverage"
   },
   "dependencies": {
-    "@rhino.fi/sdk": "3.3.0",
+    "@rhino.fi/sdk": "3.4.0",
     "@tetherto/wdk-wallet": "1.0.0-beta.19",
     "bare-node-runtime": "1.5.0",
     "decimal.js": "10.6.0"

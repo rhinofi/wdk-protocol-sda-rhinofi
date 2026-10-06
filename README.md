@@ -18,11 +18,30 @@ wrong chain:
 - DeFi protocols onboarding liquidity from multiple chains
 - Neobanks and payment processors that need predictable, compliant settlement
 
+## WDK compatibility
+
+`RhinofiProtocol` implements `ISdaProtocol` from
+[`@tetherto/wdk-wallet`](https://github.com/tetherto/wdk-wallet) by extending
+its `SdaProtocol` base class, and throws that package's error types.
+
+| | `@tetherto/wdk-wallet` |
+| --- | --- |
+| Supported range | `>=1.0.0-beta.17 <1.0.0` - `beta.17` is the first release with the `SdaError` this module throws |
+| Built and tested against | `1.0.0-beta.19`, which this package pins as a dependency |
+
+To match error classes with `instanceof` when your app resolves a different
+`@tetherto/wdk-wallet` copy than this package, import them from this package -
+it re-exports every class it throws.
+
 ## Installation
 
 ```bash
 npm install @rhino.fi/wdk-protocol-sda-rhinofi
 ```
+
+Every call needs a rhino.fi API key (`config.apiKey`), and talks to the live
+rhino.fi API - see [Examples](#examples) for what each key type can do before
+running anything.
 
 ## Usage
 
@@ -44,10 +63,10 @@ const routes = await sda.getSupportedRoutes({
 // against your account's fees.
 const quote = await sda.quoteDeposit({
   sourceChain: 'ARBITRUM',
-  inputToken: 'USDC',
+  inputToken: 'USDT',
   destinationChain: 'BASE',
   outputAsset: 'USDT',
-  inputAmount: 1_000_000_000n, // 1,000 USDC, in base units
+  inputAmount: 1_000_000_000n, // 1,000 USDT, in base units
   depositor: '0x…',
   destinationAddress: '0x…'
 })
@@ -142,7 +161,7 @@ omitted and each token instead carries `minDepositLimitUsd` /
 
 ```javascript
 const [route] = await sda.getSupportedRoutes({ sourceChain: 'ARBITRUM', destinationChain: 'BASE' })
-route.inputTokens[0] // { token: 'USDC', decimals: 6, minDepositLimitUsd: 10, maxDepositLimitUsd: 100000, … }
+route.inputTokens[0] // { token: 'USDT', decimals: 6, minDepositLimitUsd: 10, maxDepositLimitUsd: 100000, … }
 ```
 
 ### Transfer status
@@ -156,6 +175,11 @@ route.inputTokens[0] // { token: 'USDC', decimals: 6, minDepositLimitUsd: 10, ma
 | Bridge executed | `completed` |
 | Bridge failed after acceptance | `failed` |
 | Deposit rejected | `refund-pending` |
+| Any state this module does not recognize | `pending` |
+
+`pending` is the WDK non-terminal fallback: a state rhino.fi adds later is
+reported as `pending` rather than guessed at, so never treat `pending` as
+final.
 
 The history does not record the refund itself, so a rejected deposit stays
 `refund-pending` here; the `SDA_REFUND_COMPLETED` webhook event is how you learn
@@ -221,28 +245,105 @@ destination against `destinationChain`.
 
 ## Errors
 
-All errors extend `RhinofiProtocolError`:
+Every error is a WDK error: each one is, or extends, a class from
+`@tetherto/wdk-wallet`, and all of them extend `WdkError`. This package
+re-exports the WDK classes it throws (`WdkError`, `ValueError`,
+`NoSuchElementError`, `SdaError`, `SdaErrorReason`, `ProviderError`,
+`ProviderErrorReason`).
 
-| Error | Raised when |
-| --- | --- |
-| `ConfigurationError` | No `apiKey` was configured. |
-| `ValueError` | An argument is missing or malformed — always before any network call. |
-| `UnsupportedChainError` | The chain is unknown to rhino.fi, or has SDAs disabled. |
-| `UnsupportedTokenError` | The token is not listed on that chain. |
-| `NoSuchElementError` | No such deposit address or transfer. |
-| `SdaExecutionError` | rhino.fi rejected the request. `code` carries the rhino.fi failure tag. |
+| Error | WDK type | Raised when |
+| --- | --- | --- |
+| `ValueError` | `ValueError` itself | An argument is missing or malformed — always before any network call. |
+| `ConfigurationError` | extends `ValueError` | No `apiKey` was configured. |
+| `NoSuchElementError` | `NoSuchElementError` itself | No such deposit address or transfer. |
+| `UnsupportedChainError` | extends `SdaError`, `reason: ROUTE_NOT_SUPPORTED` | The chain is unknown to rhino.fi, or has SDAs disabled. `chain` names it. |
+| `UnsupportedTokenError` | extends `SdaError`, `reason: ROUTE_NOT_SUPPORTED` | The token is not listed on that chain. `token` and `chain` name it. |
+| `SdaExecutionError` | extends `ProviderError` | The rhino.fi request failed. `code` carries the rhino.fi failure tag. |
+| `UnsupportedOperationError` | `UnsupportedOperationError` itself | One of the four unimplemented optional methods was called. |
+
+`SdaExecutionError.reason` is a WDK `ProviderErrorReason` when one applies:
+`NETWORK_ERROR` (the request never got a response), `UNAUTHORIZED` (the API key
+was rejected), `FORBIDDEN` (Smart Deposit Addresses are not enabled for the
+key), `REQUEST_TIMEOUT` or `INTERNAL_SERVER_ERROR`. It is `undefined` when
+rhino.fi rejected the request for a reason WDK has no category for, such as a
+rate limit - read `code` then.
 
 ```javascript
-import { SdaExecutionError } from '@rhino.fi/wdk-protocol-sda-rhinofi'
+import { ProviderErrorReason, SdaExecutionError } from '@rhino.fi/wdk-protocol-sda-rhinofi'
 
 try {
   await sda.createDepositAddress(options)
 } catch (error) {
   if (error instanceof SdaExecutionError && error.code === 'DepositAddressRateLimitExceeded') {
     // back off and retry later
+  } else if (error instanceof SdaExecutionError && error.reason === ProviderErrorReason.UNAUTHORIZED) {
+    // the API key was rejected
   }
 }
 ```
+
+## Known limitations
+
+- **Deposit limits are USD-only.** rhino.fi enforces limits in USD, so
+  `SdaRoute.limits` is never set. Read `minDepositLimitUsd` /
+  `maxDepositLimitUsd` on each input token instead.
+- **`destinationAddress` can be absent.** rhino.fi withholds it from standard
+  API keys, so `SdaDepositAddress.destinationAddress` is only populated when the
+  module runs with a `SECRET_` key. Don't assume the field is always present.
+- **`getTransfer` is a window search, not an id lookup.** rhino.fi has no lookup
+  by deposit id, so `getTransfer(id)` scans one history window (31 days at most,
+  the last 31 days by default) and throws `NoSuchElementError` for a deposit
+  outside it. Pass `fromTimestamp` / `toTimestamp` to reach older deposits.
+- **Refund completion is webhook-only.** The history never records the refund, so
+  a rejected deposit stays `refund-pending` and `refunded` is never returned.
+  The `SDA_REFUND_COMPLETED` webhook event is the only signal that funds went
+  back.
+- **Unrecognized statuses map to `pending`.** See
+  [Transfer status](#transfer-status).
+- **No Bare or testnet evidence yet.** The test suite runs under Node with the
+  rhino.fi SDK mocked. The Bare entry point (`bare.js`) is shipped but not
+  exercised by any automated test, and nothing has been run against a testnet:
+  the default API and both examples are rhino.fi mainnet.
+
+## Examples
+
+Runnable scripts live in [`examples/`](./examples). Read this before running
+one:
+
+- **`RHINO_API_KEY` is required.** The constructor throws `ConfigurationError`
+  without it.
+- **The key type decides what works.** A standard key covers
+  `getSupportedRoutes`, `quoteDeposit`, `createDepositAddress` and
+  `getDepositAddress`, and is safe client-side. `getTransfers`, `getTransfer`,
+  `disableDepositAddress` and `enableDepositAddress` need a `SECRET_` key, which
+  must stay server-side. Only a `SECRET_` key reads `destinationAddress` back.
+- **They hit live rhino.fi.** Both scripts call the mainnet API - there is no
+  sandbox. `discover-and-quote.mjs` is read-only. `deposit-address.mjs` performs
+  a real, rate-limited write: it creates an address on your account that is live
+  immediately and delivers anything sent to it. Neither script moves funds.
+- **Runtime.** The scripts are Node ES modules and need Node 20.6+ for
+  `--env-file`. Under Bare, the `bare` export condition loads `bare.js`, which
+  installs `bare-node-runtime`; the examples themselves have only been run under
+  Node. Bundlers need ESM support and must honour the `exports` conditions - the
+  import attributes in `bare.js` are only reached under the `bare` condition.
+
+| Script | Needs | Key |
+| --- | --- | --- |
+| [`discover-and-quote.mjs`](./examples/discover-and-quote.mjs) | `RHINO_API_KEY`, `RHINO_DEPOSITOR_ADDRESS`, `RHINO_DESTINATION_ADDRESS` | standard |
+| [`deposit-address.mjs`](./examples/deposit-address.mjs) | `RHINO_API_KEY`, `RHINO_DESTINATION_ADDRESS` | standard to create; `SECRET_` for the transfer listing at the end |
+
+```bash
+cp examples/.env.example examples/.env   # then fill it in
+node --env-file=examples/.env examples/discover-and-quote.mjs
+node --env-file=examples/.env examples/deposit-address.mjs
+```
+
+## Support
+
+- Integration help: your rhino.fi account representative, and the
+  [rhino.fi docs](https://docs.rhino.fi).
+- Bugs in this module: [GitHub issues](https://github.com/rhinofi/wdk-protocol-sda-rhinofi/issues).
+- Security reports: **security@rhino.fi** - see [SECURITY.md](./SECURITY.md).
 
 ## Development
 

@@ -14,7 +14,7 @@
 
 'use strict'
 
-import { SdaExecutionError } from './errors.js'
+import { ProviderErrorReason, SdaExecutionError } from './errors.js'
 
 /**
  * The shape this module reads from a rhino.fi SDA API error body to derive a
@@ -124,6 +124,26 @@ const describeRateLimit = (limit) => {
 }
 
 /**
+ * Picks the WDK `ProviderErrorReason` a rhino.fi failure maps to. The SDK
+ * returns API failures as plain bodies, so a thrown `Error` is a transport
+ * rejection that never produced a response.
+ *
+ * @param {RhinoErrorLike | Error | undefined} rhinoError - The error returned or thrown by the rhino.fi SDK.
+ * @param {{ ok: boolean, status: number, statusText?: string }} [response] - The HTTP response the error came with, if any.
+ * @returns {string | undefined} The matching reason, or `undefined` when WDK has no category for the failure.
+ */
+const providerErrorReason = (rhinoError, response) => {
+  const code = errorTag(rhinoError)
+  const status = response?.status
+  if (code === 'Unauthorized' || code === 'InvalidJwt' || status === 401) return ProviderErrorReason.UNAUTHORIZED
+  if (code === 'ExtensionNotEnabled' || status === 403) return ProviderErrorReason.FORBIDDEN
+  if (status === 408 || status === 504) return ProviderErrorReason.REQUEST_TIMEOUT
+  if (status >= 500) return ProviderErrorReason.INTERNAL_SERVER_ERROR
+  if (rhinoError instanceof Error && response === undefined) return ProviderErrorReason.NETWORK_ERROR
+  return undefined
+}
+
+/**
  * Builds an {@link SdaExecutionError} from a rhino.fi SDK error, enriching the
  * message with the precise failure and attaching its `code`. When the body
  * carries no usable detail (an empty or non-JSON error page), the HTTP status
@@ -140,5 +160,9 @@ export const sdaExecutionError = (baseMessage, rhinoError, response) => {
     ? `rhino.fi responded ${response.status} ${response.statusText ?? ''}`.trim()
     : undefined
   const finalDetail = detail ?? fallbackDetail
-  return new SdaExecutionError(finalDetail ? `${baseMessage} (${finalDetail}).` : baseMessage, { cause: rhinoError ?? response, code })
+  return new SdaExecutionError(finalDetail ? `${baseMessage} (${finalDetail}).` : baseMessage, {
+    cause: rhinoError ?? response,
+    code,
+    reason: providerErrorReason(rhinoError, response)
+  })
 }
