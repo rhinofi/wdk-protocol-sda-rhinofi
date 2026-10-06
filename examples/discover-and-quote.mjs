@@ -4,10 +4,10 @@
 // Read-only: nothing here creates an address or moves funds, and no wallet
 // account is needed at all — only an API key.
 //
-//   RHINO_API_KEY=<your key> \
-//   RHINO_DEPOSITOR_ADDRESS=0x… \
-//   RHINO_DESTINATION_ADDRESS=0x… \
-//     node examples/discover-and-quote.mjs
+// Calls the live rhino.fi mainnet API; a standard API key is enough. See the
+// README's Examples section and examples/.env.example for the variables.
+//
+//   node --env-file=examples/.env examples/discover-and-quote.mjs
 
 import RhinofiProtocol from '@rhino.fi/wdk-protocol-sda-rhinofi'
 
@@ -32,10 +32,10 @@ for (const route of routes) {
 
 const quote = await sda.quoteDeposit({
   sourceChain: 'ARBITRUM',
-  inputToken: 'USDC',
+  inputToken: 'USDT',
   destinationChain: 'BASE',
   outputAsset: 'USDT',
-  inputAmount: 1_000_000_000n, // 1,000 USDC (6 decimals)
+  inputAmount: 1_000_000_000n, // 1,000 USDT (6 decimals)
   // Naming both addresses is what makes the quote reflect your account's fees.
   depositor: process.env.RHINO_DEPOSITOR_ADDRESS,
   destinationAddress: process.env.RHINO_DESTINATION_ADDRESS

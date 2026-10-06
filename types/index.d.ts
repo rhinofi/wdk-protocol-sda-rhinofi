@@ -29,4 +29,4 @@ export type RhinofiTransferExtras = import("./src/types.js").RhinofiTransferExtr
 export type RhinofiChainMetadata = import("./src/types.js").RhinofiChainMetadata;
 export type SdaExecutionErrorDetails = import("./src/errors.js").SdaExecutionErrorDetails;
 export { default, default as RhinofiProtocol } from "./src/rhinofi-protocol.js";
-export { RhinofiProtocolError, ConfigurationError, ValueError, UnsupportedChainError, UnsupportedTokenError, NoSuchElementError, SdaExecutionError } from "./src/errors.js";
+export { WdkError, ValueError, NoSuchElementError, SdaError, SdaErrorReason, ProviderError, ProviderErrorReason, ConfigurationError, UnsupportedChainError, UnsupportedTokenError, SdaExecutionError } from "./src/errors.js";

@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, jest } from '@jest/globals'
-import { UnsupportedOperationError } from '@tetherto/wdk-wallet'
-import { ISdaProtocol } from '@tetherto/wdk-wallet/protocols'
+import { NoSuchElementError as WdkNoSuchElementError, ProviderError, ProviderErrorReason, UnsupportedOperationError, ValueError as WdkValueError } from '@tetherto/wdk-wallet'
+import { ISdaProtocol, SdaError, SdaErrorReason } from '@tetherto/wdk-wallet/protocols'
 
 // --- Fixtures -------------------------------------------------------------
 
@@ -719,6 +719,26 @@ describe('@rhino.fi/wdk-protocol-sda-rhinofi', () => {
       const error = await protocolWith().createDepositAddress(OPTIONS).catch((caught) => caught)
       expect(error.code).toBe('DepositAddressRateLimitExceeded')
     })
+
+    it('should throw the WDK error types', async () => {
+      expect(ValueError).toBe(WdkValueError)
+      expect(NoSuchElementError).toBe(WdkNoSuchElementError)
+
+      const unsupportedChain = await protocolWith()
+        .createDepositAddress({ ...OPTIONS, sourceChains: ['ETHEREUM'] })
+        .catch((caught) => caught)
+      expect(unsupportedChain).toBeInstanceOf(SdaError)
+      expect(unsupportedChain.reason).toBe(SdaErrorReason.ROUTE_NOT_SUPPORTED)
+
+      depositAddressesApi.create.mockResolvedValue({ error: { _tag: 'Unauthorized', message: 'nope' } })
+      const unauthorized = await protocolWith().createDepositAddress(OPTIONS).catch((caught) => caught)
+      expect(unauthorized).toBeInstanceOf(ProviderError)
+      expect(unauthorized.reason).toBe(ProviderErrorReason.UNAUTHORIZED)
+
+      depositAddressesApi.create.mockRejectedValue(new Error('socket hang up'))
+      const transport = await protocolWith().createDepositAddress(OPTIONS).catch((caught) => caught)
+      expect(transport.reason).toBe(ProviderErrorReason.NETWORK_ERROR)
+    })
   })
 
   describe('getDepositAddress', () => {
@@ -970,7 +990,7 @@ describe('@rhino.fi/wdk-protocol-sda-rhinofi', () => {
       expect(transfers).toEqual([])
     })
 
-    it('should treat an unknown accepted bridge state as still processing', async () => {
+    it('should fall back to pending for an unrecognized accepted bridge state', async () => {
       depositAddressesApi.getHistory.mockResolvedValue({
         data: {
           ...DUMMY_HISTORY,
@@ -980,7 +1000,7 @@ describe('@rhino.fi/wdk-protocol-sda-rhinofi', () => {
 
       const [transfer] = await protocolWith().getTransfers(DUMMY_SDA_ARBITRUM, OPTIONS)
 
-      expect(transfer.status).toBe('processing')
+      expect(transfer.status).toBe('pending')
     })
 
     it('should map a confirming deposit as processing', async () => {
