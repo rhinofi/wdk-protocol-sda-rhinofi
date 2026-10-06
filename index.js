@@ -48,11 +48,15 @@
 export { default, default as RhinofiProtocol } from './src/rhinofi-protocol.js'
 export { ISdaProtocol } from '@tetherto/wdk-wallet/protocols'
 export {
-  RhinofiProtocolError,
-  ConfigurationError,
+  WdkError,
   ValueError,
+  NoSuchElementError,
+  SdaError,
+  SdaErrorReason,
+  ProviderError,
+  ProviderErrorReason,
+  ConfigurationError,
   UnsupportedChainError,
   UnsupportedTokenError,
-  NoSuchElementError,
   SdaExecutionError
 } from './src/errors.js'

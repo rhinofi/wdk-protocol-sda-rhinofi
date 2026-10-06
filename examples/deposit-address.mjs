@@ -4,7 +4,11 @@
 // account — but it never moves funds and needs no signing key. The address is
 // live immediately and is monitored long-term; see the README.
 //
-//   RHINO_API_KEY=<your key> RHINO_DESTINATION_ADDRESS=0x… node examples/deposit-address.mjs
+// Calls the live rhino.fi mainnet API. Creating the address works with a
+// standard API key; the getTransfers call below needs a SECRET_ key. See the
+// README's Examples section and examples/.env.example for the variables.
+//
+//   node --env-file=examples/.env examples/deposit-address.mjs
 
 import RhinofiProtocol from '@rhino.fi/wdk-protocol-sda-rhinofi'
 

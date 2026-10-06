@@ -395,7 +395,7 @@ export default class RhinofiProtocol extends SdaProtocol {
     const status = await this._call(
       this._sdk.api.depositAddresses.getStatus({ depositAddress, depositChain }),
       'Failed to fetch the rhino.fi Smart Deposit Address.',
-      { notFound: () => new NoSuchElementError('deposit address', id) }
+      { notFound: () => new NoSuchElementError(`No deposit address found for id "${id}".`) }
     )
 
     return mapDepositAddress(status, { config })
@@ -458,7 +458,7 @@ export default class RhinofiProtocol extends SdaProtocol {
     const transfers = await this._fetchTransfers(depositChain, depositAddress, this._resolveWindow(options))
     const transfer = transfers.find((candidate) => candidate.id === id)
     if (!transfer) {
-      throw new NoSuchElementError('transfer', transferId)
+      throw new NoSuchElementError(`No transfer found for id "${transferId}".`)
     }
     return transfer
   }
@@ -507,7 +507,7 @@ export default class RhinofiProtocol extends SdaProtocol {
         action: { _tag: action, depositChain }
       }),
       `Failed to ${action.toLowerCase()} the rhino.fi Smart Deposit Address.`,
-      { notFound: () => new NoSuchElementError('deposit address', id) }
+      { notFound: () => new NoSuchElementError(`No deposit address found for id "${id}".`) }
     )
   }
 
@@ -516,7 +516,7 @@ export default class RhinofiProtocol extends SdaProtocol {
     const history = await this._call(
       this._sdk.api.depositAddresses.getHistory({ depositAddress, depositChain, ...window }),
       'Failed to fetch the rhino.fi Smart Deposit Address history.',
-      { notFound: () => new NoSuchElementError('deposit address', encodeAddressId(depositChain, depositAddress)) }
+      { notFound: () => new NoSuchElementError(`No deposit address found for id "${encodeAddressId(depositChain, depositAddress)}".`) }
     )
     return (history?.bridges ?? []).map((entry) => mapTransfer(entry, { depositChain, depositAddress }))
   }

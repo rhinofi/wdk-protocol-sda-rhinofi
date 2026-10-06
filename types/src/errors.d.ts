@@ -4,46 +4,25 @@
  * @typedef {Object} SdaExecutionErrorDetails
  * @property {unknown} [cause] - The underlying rhino.fi SDK error or transport rejection.
  * @property {string} [code] - The rhino.fi failure tag, when the response carried one.
+ * @property {string} [reason] - The WDK `ProviderErrorReason` the failure maps to, when one applies.
  */
-/**
- * The options accepted alongside an error message. Declared here rather than
- * using the built-in `ErrorOptions`, which only exists from the ES2022 lib and
- * would otherwise leak into the emitted types as an unresolved name.
- *
- * @typedef {Object} RhinofiErrorOptions
- * @property {unknown} [cause] - The underlying error this one wraps.
- */
-/**
- * Base class for every error thrown by the rhino.fi SDA protocol.
- * Catch this to handle any module-specific failure.
- */
-export class RhinofiProtocolError extends Error {
-    /**
-     * Creates a new rhino.fi protocol error.
-     *
-     * @param {string} message - The human-readable error message.
-     * @param {RhinofiErrorOptions} [details] - Standard error options, carrying the underlying `cause`.
-     */
-    constructor(message: string, details?: RhinofiErrorOptions);
-}
 /**
  * Thrown when the protocol is missing required configuration, such as the
- * rhino.fi API key.
+ * rhino.fi API key. A WDK `ValueError`.
  */
-export class ConfigurationError extends RhinofiProtocolError {
-}
-/**
- * Thrown when a required argument is missing or malformed - the WDK
- * `ValueError` equivalent for this module. Raised before any network call, so
- * receiving one always means the call itself was wrong.
- */
-export class ValueError extends RhinofiProtocolError {
+export class ConfigurationError extends ValueError {
+    /**
+     * Creates a new configuration error.
+     *
+     * @param {string} message - The human-readable error message.
+     */
+    constructor(message: string);
 }
 /**
  * Thrown when a chain is not supported by rhino.fi, or has Smart Deposit
- * Addresses disabled.
+ * Addresses disabled. A WDK `SdaError` with reason `ROUTE_NOT_SUPPORTED`.
  */
-export class UnsupportedChainError extends RhinofiProtocolError {
+export class UnsupportedChainError extends SdaError {
     /**
      * Creates a new unsupported-chain error.
      *
@@ -58,9 +37,10 @@ export class UnsupportedChainError extends RhinofiProtocolError {
     chain: string | number;
 }
 /**
- * Thrown when a token is not supported on the given chain.
+ * Thrown when a token is not supported on the given chain. A WDK `SdaError`
+ * with reason `ROUTE_NOT_SUPPORTED`.
  */
-export class UnsupportedTokenError extends RhinofiProtocolError {
+export class UnsupportedTokenError extends SdaError {
     /**
      * Creates a new unsupported-token error.
      *
@@ -82,36 +62,18 @@ export class UnsupportedTokenError extends RhinofiProtocolError {
     chain: string | number;
 }
 /**
- * Thrown when no deposit address or transfer exists for the given identifier —
- * the WDK `NoSuchElementError` equivalent for this module.
+ * Thrown when a rhino.fi Smart Deposit Address request fails. A WDK
+ * `ProviderError`: `reason` holds the matching `ProviderErrorReason` when one
+ * applies, and `code` carries the rhino.fi failure tag (e.g.
+ * 'DepositAddressRateLimitExceeded', 'DepositAddressTokenOutNotSupported') for
+ * programmatic handling.
  */
-export class NoSuchElementError extends RhinofiProtocolError {
-    /**
-     * Creates a new no-such-element error.
-     *
-     * @param {string} kind - What was looked up, e.g. 'deposit address' or 'transfer'.
-     * @param {string} id - The identifier that produced no match.
-     * @param {RhinofiErrorOptions} [details] - Standard error options, carrying the underlying `cause`.
-     */
-    constructor(kind: string, id: string, details?: RhinofiErrorOptions);
-    /**
-     * The identifier that produced no match.
-     *
-     * @type {string}
-     */
-    id: string;
-}
-/**
- * Thrown when a rhino.fi Smart Deposit Address request fails. The `code`
- * carries the rhino.fi failure tag (e.g. 'DepositAddressRateLimitExceeded',
- * 'DepositAddressTokenOutNotSupported') for programmatic handling.
- */
-export class SdaExecutionError extends RhinofiProtocolError {
+export class SdaExecutionError extends ProviderError {
     /**
      * Creates a new SDA execution error.
      *
      * @param {string} message - The human-readable error message.
-     * @param {SdaExecutionErrorDetails} [details] - The underlying cause and the rhino.fi failure tag.
+     * @param {SdaExecutionErrorDetails} [details] - The underlying cause, the rhino.fi failure tag and the WDK reason.
      */
     constructor(message: string, details?: SdaExecutionErrorDetails);
     /**
@@ -133,15 +95,16 @@ export type SdaExecutionErrorDetails = {
      * - The rhino.fi failure tag, when the response carried one.
      */
     code?: string;
-};
-/**
- * The options accepted alongside an error message. Declared here rather than
- * using the built-in `ErrorOptions`, which only exists from the ES2022 lib and
- * would otherwise leak into the emitted types as an unresolved name.
- */
-export type RhinofiErrorOptions = {
     /**
-     * - The underlying error this one wraps.
+     * - The WDK `ProviderErrorReason` the failure maps to, when one applies.
      */
-    cause?: unknown;
+    reason?: string;
 };
+import { NoSuchElementError } from '@tetherto/wdk-wallet/protocols';
+import { ProviderError } from '@tetherto/wdk-wallet';
+import { ProviderErrorReason } from '@tetherto/wdk-wallet';
+import { SdaError } from '@tetherto/wdk-wallet/protocols';
+import { SdaErrorReason } from '@tetherto/wdk-wallet/protocols';
+import { ValueError } from '@tetherto/wdk-wallet/protocols';
+import { WdkError } from '@tetherto/wdk-wallet/protocols';
+export { NoSuchElementError, ProviderError, ProviderErrorReason, SdaError, SdaErrorReason, ValueError, WdkError };

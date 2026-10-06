@@ -60,7 +60,7 @@ const ID_SEPARATOR = ':'
  * The entry the rhino.fi SDA API returns for each token a deposit address accepts.
  *
  * @typedef {Object} RhinofiSupportedToken
- * @property {string} symbol - The token ticker, e.g. 'USDC'.
+ * @property {string} symbol - The token ticker, e.g. 'USDT'.
  * @property {string} address - The token's contract address on the deposit chain.
  * @property {number} minDepositLimitUsd - Smallest deposit rhino.fi will process for this token, in USD.
  * @property {number} maxDepositLimitUsd - Largest deposit rhino.fi will process for this token, in USD.
@@ -395,8 +395,8 @@ export const mapDepositAddress = (depositAddress, context) => {
 
 /**
  * Maps the state of an accepted rhino.fi bridge to the canonical WDK
- * {@link SdaTransferStatus}. Unknown states fall back to `processing` — the
- * deposit was accepted, so it is in flight rather than failed.
+ * {@link SdaTransferStatus}. Unrecognized states fall back to `pending`, the
+ * WDK non-terminal fallback.
  *
  * @type {Record<string, SdaTransferStatus>}
  */
@@ -428,13 +428,13 @@ export const mapTransferStatus = (entry) => {
     case 'confirming':
       return 'processing'
     case 'accepted':
-      return BRIDGE_STATE_TO_STATUS[entry.history?.state] ?? 'processing'
+      return BRIDGE_STATE_TO_STATUS[entry.history?.state] ?? 'pending'
     case 'rejected':
       return 'refund-pending'
     case 'failed':
       return 'failed'
     default:
-      return 'processing'
+      return 'pending'
   }
 }
 
