@@ -22,6 +22,7 @@
 /** @typedef {import('@tetherto/wdk-wallet/protocols').Blockchain} Blockchain */
 /** @typedef {import('@tetherto/wdk-wallet/protocols').SdaToken} SdaToken */
 /** @typedef {import('@tetherto/wdk-wallet/protocols').SdaDepositAddress} SdaDepositAddress */
+/** @typedef {import('@tetherto/wdk-wallet/protocols').SdaRoute} SdaRoute */
 /** @typedef {import('@tetherto/wdk-wallet/protocols').SdaTransfer} SdaTransfer */
 
 /**
@@ -30,6 +31,21 @@
  * denominated in USD rather than in the token's own base unit.
  *
  * @typedef {SdaToken & RhinofiTokenLimits} RhinofiSdaToken
+ */
+
+/**
+ * A conversion route offered by rhino.fi Smart Deposit Addresses. Narrows the
+ * WDK {@link SdaRoute} so every input token carries rhino.fi's USD deposit
+ * limits.
+ *
+ * @typedef {SdaRoute & RhinofiRouteTokens} RhinofiSdaRoute
+ */
+
+/**
+ * The rhino.fi-typed token list carried on every {@link RhinofiSdaRoute}.
+ *
+ * @typedef {Object} RhinofiRouteTokens
+ * @property {RhinofiSdaToken[]} inputTokens - The deposit tokens accepted on the source side, with their USD limits.
  */
 
 /**
@@ -55,17 +71,14 @@
 /**
  * A rhino.fi Smart Deposit Address. Extends the WDK {@link SdaDepositAddress}
  * with the rhino.fi lifecycle flags and metadata that have no WDK equivalent.
- * `destinationAddress` is optional here, unlike in WDK: rhino.fi discloses it
- * only to `SECRET_` keys, and this module never substitutes another value.
  *
- * @typedef {Omit<SdaDepositAddress, 'destinationAddress'> & RhinofiDepositAddressExtras} RhinofiSdaDepositAddress
+ * @typedef {SdaDepositAddress & RhinofiDepositAddressExtras} RhinofiSdaDepositAddress
  */
 
 /**
  * The rhino.fi-specific fields carried on every {@link RhinofiSdaDepositAddress}.
  *
  * @typedef {Object} RhinofiDepositAddressExtras
- * @property {string} [destinationAddress] - The address the converted asset is delivered to. Present only when the API key is a `SECRET_` key.
  * @property {boolean} isActive - Whether rhino.fi is still monitoring the address for incoming deposits.
  * @property {boolean} isPaused - Whether the address currently rejects deposits; toggled by `disableDepositAddress` and `enableDepositAddress`.
  * @property {string} [addressNote] - The free-form label supplied when the address was created.

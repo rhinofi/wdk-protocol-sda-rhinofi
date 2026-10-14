@@ -37,6 +37,8 @@
 
 /** @typedef {import('./src/types.js').RhinofiSdaToken} RhinofiSdaToken */
 /** @typedef {import('./src/types.js').RhinofiTokenLimits} RhinofiTokenLimits */
+/** @typedef {import('./src/types.js').RhinofiSdaRoute} RhinofiSdaRoute */
+/** @typedef {import('./src/types.js').RhinofiRouteTokens} RhinofiRouteTokens */
 /** @typedef {import('./src/types.js').RhinofiSdaDepositAddress} RhinofiSdaDepositAddress */
 /** @typedef {import('./src/types.js').RhinofiDepositAddressExtras} RhinofiDepositAddressExtras */
 /** @typedef {import('./src/types.js').RhinofiSdaTransfer} RhinofiSdaTransfer */

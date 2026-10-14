@@ -17,7 +17,7 @@
 import { RhinoSdk } from '@rhino.fi/sdk'
 import { SdaProtocol } from '@tetherto/wdk-wallet/protocols'
 
-import { ConfigurationError, NoSuchElementError, ValueError } from './errors.js'
+import { ConfigurationError, NoSuchElementError, ProviderErrorReason, SdaExecutionError, ValueError } from './errors.js'
 import { errorTag, NOT_FOUND_TAGS, sdaExecutionError } from './rhino-error.js'
 import {
   decodeAddressId,
@@ -43,7 +43,7 @@ import {
 
 /** @typedef {import('@tetherto/wdk-wallet/protocols').Blockchain} Blockchain */
 /** @typedef {import('@tetherto/wdk-wallet/protocols').SdaRoutesOptions} SdaRoutesOptions */
-/** @typedef {import('@tetherto/wdk-wallet/protocols').SdaRoute} SdaRoute */
+/** @typedef {import('./types.js').RhinofiSdaRoute} RhinofiSdaRoute */
 /** @typedef {import('@tetherto/wdk-wallet/protocols').SdaDepositOptions} SdaDepositOptions */
 /** @typedef {import('@tetherto/wdk-wallet/protocols').SdaDepositQuote} SdaDepositQuote */
 /** @typedef {import('@tetherto/wdk-wallet/protocols').SdaCreateDepositAddressOptions} SdaCreateDepositAddressOptions */
@@ -224,7 +224,7 @@ export default class RhinofiProtocol extends SdaProtocol {
    * discovery.
    *
    * @param {SdaRoutesOptions} [options] - Filters narrowing which routes are returned.
-   * @returns {Promise<SdaRoute[]>} One route per source chain that accepts deposits for the destination.
+   * @returns {Promise<RhinofiSdaRoute[]>} One route per source chain that accepts deposits for the destination, each input token carrying rhino.fi's USD deposit limits.
    * @throws {ValueError} If `destinationChain` is not set.
    * @throws {UnsupportedChainError} If a named chain is unknown to rhino.fi or has Smart Deposit Addresses disabled.
    * @throws {UnsupportedTokenError} If `outputAsset` is not listed on the destination chain.
@@ -337,13 +337,12 @@ export default class RhinofiProtocol extends SdaProtocol {
    * per entry in `sourceChains`. All source chains must belong to the same
    * chain family (all EVM, or all Solana, …); rhino.fi rejects a mixed list.
    * Created addresses are live and monitored immediately, for ten years.
-   * With a standard (non-`SECRET_`) key the returned `destinationAddress` is
-   * unset, as rhino.fi does not disclose it; the address still delivers to
-   * the destination that was requested.
+   * The returned `destinationAddress` is the one requested (or the bound
+   * account's address), so it is populated whichever key type is in use.
    *
    * @param {RhinofiCreateDepositAddressOptions} options - The address creation options, including the rhino.fi-specific extras.
    * @returns {Promise<RhinofiSdaDepositAddress[]>} The created addresses, one per source chain.
-   * @throws {ValueError} If `sourceChains` is empty, or `destinationAddress` is omitted and no account was bound at construction.
+   * @throws {ValueError} If `sourceChains` is empty, `destinationAddress` is given but empty, or it is omitted and no account was bound at construction.
    * @throws {UnsupportedChainError} If a source chain is unknown to rhino.fi or has Smart Deposit Addresses disabled.
    * @throws {UnsupportedTokenError} If `outputAsset` is not listed on the destination chain.
    * @throws {SdaExecutionError} If rhino.fi rejects the request, e.g. on a mixed-family chain list or an exceeded rate limit.
@@ -376,17 +375,20 @@ export default class RhinofiProtocol extends SdaProtocol {
       'Failed to create a rhino.fi Smart Deposit Address.'
     )
 
-    return (created ?? []).map((depositAddress) => mapDepositAddress(depositAddress, { config }))
+    return (created ?? []).map((depositAddress) => mapDepositAddress(depositAddress, { config, destinationAddress }))
   }
 
   /**
    * Looks up an existing Smart Deposit Address by its identifier.
    *
+   * rhino.fi discloses `destinationAddress` only to `SECRET_` keys, and a
+   * complete WDK descriptor needs it, so this lookup requires a `SECRET_` key.
+   *
    * @param {string} id - The `SdaDepositAddress.id` returned by {@link RhinofiProtocol#createDepositAddress}, which round-trips the deposit chain.
    * @returns {Promise<RhinofiSdaDepositAddress>} The deposit address descriptor.
    * @throws {ValueError} If the identifier is not in `<chain>:<address>` form.
    * @throws {NoSuchElementError} If rhino.fi has no such address.
-   * @throws {SdaExecutionError} If the rhino.fi lookup fails for any other reason.
+   * @throws {SdaExecutionError} If rhino.fi withheld `destinationAddress` (reason `FORBIDDEN`: the key is not a `SECRET_` key, or has destination access blocked), or the lookup fails for any other reason.
    */
   async getDepositAddress (id) {
     const { depositChain, depositAddress } = decodeAddressId(id)
@@ -397,8 +399,14 @@ export default class RhinofiProtocol extends SdaProtocol {
       'Failed to fetch the rhino.fi Smart Deposit Address.',
       { notFound: () => new NoSuchElementError(`No deposit address found for id "${id}".`) }
     )
+    if (!status?.destinationAddress) {
+      throw new SdaExecutionError(
+        `rhino.fi withheld the destination of deposit address "${id}": getDepositAddress needs a SECRET_ API key with destination access.`,
+        { reason: ProviderErrorReason.FORBIDDEN }
+      )
+    }
 
-    return mapDepositAddress(status, { config })
+    return mapDepositAddress(status, { config, destinationAddress: status.destinationAddress })
   }
 
   /**
@@ -562,9 +570,16 @@ export default class RhinofiProtocol extends SdaProtocol {
     return token.token.toLowerCase() === asLower || token.address?.toLowerCase() === asLower
   }
 
+  // Only an omitted `destinationAddress` takes the WDK default (the bound
+  // account); a present-but-unusable value is an error rather than a fallback.
   /** @private */
   async _resolveDestinationAddress (destinationAddress) {
-    if (destinationAddress) return destinationAddress
+    if (destinationAddress !== undefined) {
+      if (typeof destinationAddress !== 'string' || destinationAddress === '') {
+        throw new ValueError('`destinationAddress` must be a non-empty address when given; omit it to deliver to the bound wallet account.')
+      }
+      return destinationAddress
+    }
     if (!this._account) {
       throw new ValueError('`destinationAddress` is required when no wallet account is bound to the protocol.')
     }
