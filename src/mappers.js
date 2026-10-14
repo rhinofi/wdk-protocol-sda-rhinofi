@@ -32,7 +32,7 @@ const ID_SEPARATOR = ':'
 
 /** @typedef {import('@tetherto/wdk-wallet/protocols').Blockchain} Blockchain */
 /** @typedef {import('@tetherto/wdk-wallet/protocols').SdaToken} SdaToken */
-/** @typedef {import('@tetherto/wdk-wallet/protocols').SdaRoute} SdaRoute */
+/** @typedef {import('./types.js').RhinofiSdaRoute} RhinofiSdaRoute */
 /** @typedef {import('@tetherto/wdk-wallet/protocols').SdaFee} SdaFee */
 /** @typedef {import('@tetherto/wdk-wallet/protocols').SdaDepositQuote} SdaDepositQuote */
 /** @typedef {import('@tetherto/wdk-wallet/protocols').SdaDepositAddress} SdaDepositAddress */
@@ -331,11 +331,12 @@ export const mapSupportedTokens = (supportedTokens, chainKey, chainEntry) => {
  * rather than in the input token's base unit; those bounds are reported
  * per-token on `supportedInputTokens` instead.
  *
- * rhino.fi discloses `destinationAddress` only to `SECRET_` keys, so with a
- * standard key it is left unset rather than filled in from anywhere else.
+ * rhino.fi discloses `destinationAddress` only to `SECRET_` keys, so the
+ * caller supplies the destination it already knows and the response value,
+ * when present, takes precedence.
  *
  * @param {RhinofiDepositAddressResponse} depositAddress - The deposit-address entry rhino.fi returned.
- * @param {DepositAddressContext} context - The bridge config used to resolve tokens.
+ * @param {DepositAddressContext} context - The bridge config used to resolve tokens, and the known destination.
  * @returns {RhinofiSdaDepositAddress} The normalized deposit address descriptor.
  */
 export const mapDepositAddress = (depositAddress, context) => {
@@ -357,7 +358,7 @@ export const mapDepositAddress = (depositAddress, context) => {
     sourceChains: [chainKey],
     supportedInputTokens: mapSupportedTokens(depositAddress.supportedTokens, chainKey, chainEntry),
     destinationChain: depositAddress.destinationChain,
-    ...(depositAddress.destinationAddress ? { destinationAddress: depositAddress.destinationAddress } : {}),
+    destinationAddress: depositAddress.destinationAddress ?? context.destinationAddress,
     reusable: true,
     isActive: depositAddress.isActive,
     isPaused: depositAddress.isPaused,
@@ -391,6 +392,7 @@ export const mapDepositAddress = (depositAddress, context) => {
  *
  * @typedef {Object} DepositAddressContext
  * @property {BridgeConfig} config - The rhino.fi `/configs` response, used to resolve token decimals.
+ * @property {string} destinationAddress - The destination the caller resolved, used when rhino.fi withholds it.
  */
 
 /**
@@ -584,10 +586,10 @@ export const mapQuote = (quote, context) => {
 }
 
 /**
- * Builds an {@link SdaRoute} for a rhino.fi source/destination chain pair.
+ * Builds a {@link RhinofiSdaRoute} for a rhino.fi source/destination chain pair.
  *
  * @param {RouteContext} context - The chain pair, its accepted input tokens and the asset delivered.
- * @returns {SdaRoute} The supported route.
+ * @returns {RhinofiSdaRoute} The supported route.
  */
 export const mapRoute = ({ sourceChain, inputTokens, destinationChain, outputAsset }) => ({
   sourceChains: [sourceChain],

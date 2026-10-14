@@ -219,7 +219,7 @@ deposit.
 | `getSupportedRoutes(options)` | Source chains, accepted tokens and delivered asset for a destination. `destinationChain` required. |
 | `quoteDeposit(options)` | Non-binding estimate of what a deposit would deliver, priced as an SDA transaction against your account's fees. |
 | `createDepositAddress(options)` | Issue addresses; one per source chain. |
-| `getDepositAddress(id)` | Look one up by its `id`. |
+| `getDepositAddress(id)` | Look one up by its `id`. Needs a `SECRET_` key. |
 | `getTransfers(address, options)` | Deposits seen at an address. `options.sourceChain` required. |
 | `getTransfer(id, options)` | A single deposit by its `id`, within a history window. |
 | `disableDepositAddress(id)` | Stop accepting deposits (a reversible pause). |
@@ -287,9 +287,12 @@ try {
 - **Deposit limits are USD-only.** rhino.fi enforces limits in USD, so
   `SdaRoute.limits` is never set. Read `minDepositLimitUsd` /
   `maxDepositLimitUsd` on each input token instead.
-- **`destinationAddress` can be absent.** rhino.fi withholds it from standard
-  API keys, so `SdaDepositAddress.destinationAddress` is only populated when the
-  module runs with a `SECRET_` key. Don't assume the field is always present.
+- **`getDepositAddress` needs a `SECRET_` key.** rhino.fi withholds
+  `destinationAddress` from standard keys. `createDepositAddress` fills it in
+  from the request (or the bound account), so its descriptors are always
+  complete, but a lookup has nothing to fall back on and throws
+  `SdaExecutionError` with `reason: FORBIDDEN` rather than return a descriptor
+  that breaks the WDK shape.
 - **`getTransfer` is a window search, not an id lookup.** rhino.fi has no lookup
   by deposit id, so `getTransfer(id)` scans one history window (31 days at most,
   the last 31 days by default) and throws `NoSuchElementError` for a deposit
@@ -313,10 +316,10 @@ one:
 - **`RHINO_API_KEY` is required.** The constructor throws `ConfigurationError`
   without it.
 - **The key type decides what works.** A standard key covers
-  `getSupportedRoutes`, `quoteDeposit`, `createDepositAddress` and
-  `getDepositAddress`, and is safe client-side. `getTransfers`, `getTransfer`,
+  `getSupportedRoutes`, `quoteDeposit` and `createDepositAddress`, and is safe
+  client-side. `getDepositAddress`, `getTransfers`, `getTransfer`,
   `disableDepositAddress` and `enableDepositAddress` need a `SECRET_` key, which
-  must stay server-side. Only a `SECRET_` key reads `destinationAddress` back.
+  must stay server-side.
 - **They hit live rhino.fi.** Both scripts call the mainnet API - there is no
   sandbox. `discover-and-quote.mjs` is read-only. `deposit-address.mjs` performs
   a real, rate-limited write: it creates an address on your account that is live
