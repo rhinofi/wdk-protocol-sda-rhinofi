@@ -33,11 +33,12 @@ implement `deriveDepositAddress`.
   and public reads, and is safe to use client-side. A `SECRET_` key additionally
   reads history and manages addresses, so supply it via configuration or secret
   management, keep it server-side, and never commit it. Of this module's
-  methods, `getTransfers`, `getTransfer`,
+  methods, `getDepositAddress`, `getTransfers`, `getTransfer`,
   `disableDepositAddress` and `enableDepositAddress` need a `SECRET_` key.
-  rhino.fi also withholds `destinationAddress` from a standard key; the
-  module leaves it unset in that case rather than substituting a value, so
-  don't rely on reading it back with a standard key.
+  rhino.fi withholds `destinationAddress` from a standard key, so
+  `getDepositAddress` refuses to return a descriptor without it rather than
+  substituting a value; `createDepositAddress` always reports the destination
+  it was asked to use.
 - Verify `destinationAddress` before creating an address. It is fixed at
   creation time, and every deposit to that address is delivered there.
 - Confirm the deposit address out of band where the value justifies it. Because

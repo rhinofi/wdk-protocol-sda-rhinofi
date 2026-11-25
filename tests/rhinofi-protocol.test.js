@@ -616,14 +616,24 @@ describe('@rhino.fi/wdk-protocol-sda-rhinofi', () => {
       })
     })
 
-    it('should leave the destination unset rather than assume one when rhino.fi does not disclose it', async () => {
+    it('should fill in the requested destination when rhino.fi does not disclose it', async () => {
       depositAddressesApi.create.mockResolvedValue({
         data: [{ ...DUMMY_DEPOSIT_ADDRESS, destinationAddress: undefined }]
       })
 
       const [address] = await protocolWith().createDepositAddress(OPTIONS)
 
-      expect(address).not.toHaveProperty('destinationAddress')
+      expect(address.destinationAddress).toBe(DUMMY_RECIPIENT)
+    })
+
+    it('should fill in the bound account address when rhino.fi does not disclose the destination', async () => {
+      depositAddressesApi.create.mockResolvedValue({
+        data: [{ ...DUMMY_DEPOSIT_ADDRESS, destinationAddress: undefined }]
+      })
+
+      const [address] = await protocolWith().createDepositAddress({ ...OPTIONS, destinationAddress: undefined })
+
+      expect(address.destinationAddress).toBe(DUMMY_ACCOUNT_ADDRESS)
     })
 
     it('should forward the rhino.fi specific creation options', async () => {
@@ -699,6 +709,12 @@ describe('@rhino.fi/wdk-protocol-sda-rhinofi', () => {
     it('should throw if a source chain has deposit addresses disabled', async () => {
       await expect(protocolWith().createDepositAddress({ ...OPTIONS, sourceChains: ['ARBITRUM', 'ETHEREUM'] }))
         .rejects.toThrow('Chain "ETHEREUM" is not supported by rhino.fi Smart Deposit Addresses.')
+    })
+
+    it('should reject an empty destination address rather than fall back to the bound account', async () => {
+      await expect(protocolWith().createDepositAddress({ ...OPTIONS, destinationAddress: '' }))
+        .rejects.toThrow('`destinationAddress` must be a non-empty address when given')
+      expect(depositAddressesApi.create).not.toHaveBeenCalled()
     })
 
     it('should throw if no destination address is given and no account is bound', async () => {
@@ -802,14 +818,16 @@ describe('@rhino.fi/wdk-protocol-sda-rhinofi', () => {
         .rejects.toThrow('Failed to fetch the rhino.fi Smart Deposit Address. (rhino.fi responded 503 Service Unavailable).')
     })
 
-    it('should leave the destination unset when rhino.fi does not disclose it', async () => {
+    it('should require a SECRET_ key when rhino.fi does not disclose the destination', async () => {
       depositAddressesApi.getStatus.mockResolvedValue({
         data: { ...DUMMY_DEPOSIT_ADDRESS, destinationAddress: undefined }
       })
 
-      const address = await protocolWith().getDepositAddress(ID)
+      const error = await protocolWith().getDepositAddress(ID).catch((caught) => caught)
 
-      expect(address).not.toHaveProperty('destinationAddress')
+      expect(error).toBeInstanceOf(SdaExecutionError)
+      expect(error.reason).toBe(ProviderErrorReason.FORBIDDEN)
+      expect(error.message).toContain('SECRET_')
     })
   })
 
