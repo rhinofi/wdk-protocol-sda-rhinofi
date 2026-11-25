@@ -62,6 +62,26 @@ export default class RhinofiProtocol extends SdaProtocol {
     /** @private */
     private _cache;
     /**
+     * Lists the conversion routes rhino.fi supports for a destination chain: the
+     * source chains that accept deposits, the tokens each accepts, and the asset
+     * delivered.
+     *
+     * rhino.fi discovers routes per chain pair, so `destinationChain` is
+     * required. Omitting `sourceChain` queries every chain that has Smart Deposit
+     * Addresses enabled — one request per chain, so prefer passing `sourceChain`
+     * when you already know it. Source chains that fail to answer are skipped
+     * rather than failing the whole call, so one degraded chain cannot break
+     * discovery.
+     *
+     * @param {SdaRoutesOptions} [options] - Filters narrowing which routes are returned.
+     * @returns {Promise<RhinofiSdaRoute[]>} One route per source chain that accepts deposits for the destination, each input token carrying rhino.fi's USD deposit limits.
+     * @throws {ValueError} If `destinationChain` is not set.
+     * @throws {UnsupportedChainError} If a named chain is unknown to rhino.fi or has Smart Deposit Addresses disabled.
+     * @throws {UnsupportedTokenError} If `outputAsset` is not listed on the destination chain.
+     * @throws {SdaExecutionError} If the rhino.fi chain config cannot be fetched.
+     */
+    getSupportedRoutes(options?: SdaRoutesOptions): Promise<RhinofiSdaRoute[]>;
+    /**
      * Fetches a non-binding estimate of what a given deposit would deliver.
      *
      * The quote is priced against your rhino.fi account, so it reflects that
@@ -85,13 +105,12 @@ export default class RhinofiProtocol extends SdaProtocol {
      * per entry in `sourceChains`. All source chains must belong to the same
      * chain family (all EVM, or all Solana, …); rhino.fi rejects a mixed list.
      * Created addresses are live and monitored immediately, for ten years.
-     * With a standard (non-`SECRET_`) key the returned `destinationAddress` is
-     * unset, as rhino.fi does not disclose it; the address still delivers to
-     * the destination that was requested.
+     * The returned `destinationAddress` is the one requested (or the bound
+     * account's address), so it is populated whichever key type is in use.
      *
      * @param {RhinofiCreateDepositAddressOptions} options - The address creation options, including the rhino.fi-specific extras.
      * @returns {Promise<RhinofiSdaDepositAddress[]>} The created addresses, one per source chain.
-     * @throws {ValueError} If `sourceChains` is empty, or `destinationAddress` is omitted and no account was bound at construction.
+     * @throws {ValueError} If `sourceChains` is empty, `destinationAddress` is given but empty, or it is omitted and no account was bound at construction.
      * @throws {UnsupportedChainError} If a source chain is unknown to rhino.fi or has Smart Deposit Addresses disabled.
      * @throws {UnsupportedTokenError} If `outputAsset` is not listed on the destination chain.
      * @throws {SdaExecutionError} If rhino.fi rejects the request, e.g. on a mixed-family chain list or an exceeded rate limit.
@@ -100,11 +119,14 @@ export default class RhinofiProtocol extends SdaProtocol {
     /**
      * Looks up an existing Smart Deposit Address by its identifier.
      *
+     * rhino.fi discloses `destinationAddress` only to `SECRET_` keys, and a
+     * complete WDK descriptor needs it, so this lookup requires a `SECRET_` key.
+     *
      * @param {string} id - The `SdaDepositAddress.id` returned by {@link RhinofiProtocol#createDepositAddress}, which round-trips the deposit chain.
      * @returns {Promise<RhinofiSdaDepositAddress>} The deposit address descriptor.
      * @throws {ValueError} If the identifier is not in `<chain>:<address>` form.
      * @throws {NoSuchElementError} If rhino.fi has no such address.
-     * @throws {SdaExecutionError} If the rhino.fi lookup fails for any other reason.
+     * @throws {SdaExecutionError} If rhino.fi withheld `destinationAddress` (reason `FORBIDDEN`: the key is not a `SECRET_` key, or has destination access blocked), or the lookup fails for any other reason.
      */
     getDepositAddress(id: string): Promise<RhinofiSdaDepositAddress>;
     /**
@@ -186,7 +208,7 @@ export type IWalletAccount = import("@tetherto/wdk-wallet").IWalletAccount;
 export type IWalletAccountReadOnly = import("@tetherto/wdk-wallet").IWalletAccountReadOnly;
 export type Blockchain = import("@tetherto/wdk-wallet/protocols").Blockchain;
 export type SdaRoutesOptions = import("@tetherto/wdk-wallet/protocols").SdaRoutesOptions;
-export type SdaRoute = import("@tetherto/wdk-wallet/protocols").SdaRoute;
+export type RhinofiSdaRoute = import("./types.js").RhinofiSdaRoute;
 export type SdaDepositOptions = import("@tetherto/wdk-wallet/protocols").SdaDepositOptions;
 export type SdaDepositQuote = import("@tetherto/wdk-wallet/protocols").SdaDepositQuote;
 export type SdaCreateDepositAddressOptions = import("@tetherto/wdk-wallet/protocols").SdaCreateDepositAddressOptions;

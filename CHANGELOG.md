@@ -1,5 +1,19 @@
 # Changelog
 
+## 1.2.1
+
+### Patch Changes
+
+- Updated dependencies [727e40c]
+- Updated dependencies [9d65d59]
+  - @rhino.fi/sdk@3.4.1
+
+## 1.2.0
+
+### Minor Changes
+
+- 6b07b34: Always populate `destinationAddress` on deposit-address descriptors, as the WDK `SdaDepositAddress` contract requires: `createDepositAddress` fills it from the request or the bound account, and `getDepositAddress` throws `SdaExecutionError` (`reason: FORBIDDEN`) when rhino.fi withholds it from a non-`SECRET_` key. `getSupportedRoutes` now returns `RhinofiSdaRoute[]` (input tokens carry USD limits) and is declared in the generated types
+
 ## 1.1.0
 
 ### Minor Changes
